@@ -4,53 +4,46 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { isValidUsername, isValidPassword } from '../utils/validators.js';
 import { ACCESS_TOKEN_SECRET, REFRESH_TOKEN_SECRET } from '../config/loadEnv.js';
+import { refreshCookieOptions } from '../config/cookieOptions.js';
 
 const handleLogin: RequestHandler = async (req, res) => {
     const { username, password } = req.body;
-    if(!isValidUsername(username)) return res.status(401).json({ message: `ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง`})
-    if(!isValidPassword(password)) return res.status(401).json({ message: `ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง`})
 
-    try{
-        const foundUser = await User.findOne({ username: username }).select('+password').exec();
-        if(!foundUser) return res.status(401).json({ message: `ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง`});
-        const match = await bcrypt.compare(password, foundUser.password);
-        if(!match){
-            return res.status(401).json({ message: `ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง` })
-        }
-        const accessToken = jwt.sign(
-            {
-                userId: foundUser._id,
-                username: foundUser.username,
-                role: foundUser.role
-            },
-            ACCESS_TOKEN_SECRET,
-            { expiresIn: '10m' }
-        );
+    // ข้อความเดียวกันทุกกรณี ไม่บอกว่า "ไม่มีผู้ใช้นี้" หรือ "รหัสผิด"
+    // ไม่งั้นจะกลายเป็นเครื่องมือให้คนไล่เดาว่าบัญชีไหนมีอยู่จริง
+    const deny = () => res.status(401).json({ message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', code: 'BAD_CREDENTIALS' });
 
-        const refreshToken = jwt.sign(
-            {
-                userId: foundUser._id,
-            },
-            REFRESH_TOKEN_SECRET,
-            { expiresIn: '24h' }
-        );
-        foundUser.refreshToken = refreshToken;
-        await foundUser.save();
+    if (!isValidUsername(username)) return deny();
+    if (!isValidPassword(password)) return deny();
 
-        res.cookie('jwt', refreshToken, {
-            httpOnly: true,          // JS ในหน้าเว็บอ่านไม่ได้ กัน XSS ขโมย token
-            sameSite: 'none',        // ยอมให้ส่งข้ามโดเมน (React คนละ port)
-            secure: true,            // ส่งเฉพาะ https  ← ดูหมายเหตุข้างล่าง
-            maxAge: 24 * 60 * 60 * 1000
-            });
-        res.json({ accessToken });
+    const foundUser = await User.findOne({ username }).select('+password').exec();
+    if (!foundUser) return deny();
 
+    const match = await bcrypt.compare(password, foundUser.password);
+    if (!match) return deny();
 
-    }catch(err){
-        console.error(err);
-        return res.status(500).json({ message: `server error` });
-    }
-    
-}
+    const accessToken = jwt.sign(
+        { userId: foundUser._id, username: foundUser.username, role: foundUser.role },
+        ACCESS_TOKEN_SECRET,
+        { expiresIn: '10m' }
+    );
+
+    const refreshToken = jwt.sign(
+        { userId: foundUser._id },
+        REFRESH_TOKEN_SECRET,
+        { expiresIn: '24h' }
+    );
+
+    foundUser.refreshToken = refreshToken;
+    await foundUser.save();
+
+    res.cookie('jwt', refreshToken, refreshCookieOptions);
+
+    // ส่ง role กลับไปด้วย frontend จะได้รู้ว่าพาไปหน้าไหนโดยไม่ต้องแกะ token เอง
+    res.json({
+        accessToken,
+        user: { id: String(foundUser._id), username: foundUser.username, role: foundUser.role }
+    });
+};
 
 export default handleLogin;

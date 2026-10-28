@@ -15,3 +15,5 @@ export const DATABASE_URI = required('DATABASE_URI');
 export const ACCESS_TOKEN_SECRET = required('ACCESS_TOKEN_SECRET');
 export const REFRESH_TOKEN_SECRET = required('REFRESH_TOKEN_SECRET');
 export const ALLOWED_ORIGINS = required('ALLOWED_ORIGINS').split(',');
+// ไม่ใช้ required() เพราะตอน dev ไม่มี NODE_ENV ก็ถือว่าไม่ใช่ production
+export const IS_PROD = process.env.NODE_ENV === 'production';

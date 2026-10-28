@@ -17,3 +17,9 @@ export const isWeekend = (date: string): boolean => {
     const d = new Date(`${date}T00:00:00Z`).getUTCDay();
     return d === 0 || d === 6;
 };
+// บวกวันแบบปลอดภัย ทำงานบน UTC ล้วนทั้งเส้น ผลจึงเหมือนกันทุกเครื่อง
+export const addDays = (date: string, n: number): string => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+};
