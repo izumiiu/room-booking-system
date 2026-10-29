@@ -1,5 +1,16 @@
 # คู่มือ deploy ระบบจองห้อง TC-402
 
+## ระบบจริงอยู่ที่ไหน (deploy แล้วเมื่อ 29 ต.ค. 2569)
+
+| | URL |
+|---|---|
+| เว็บที่ผู้ใช้เปิด | https://room-booking-front-five.vercel.app |
+| API | https://room-booking-system-v7sg.onrender.com/api |
+| ตรวจว่า API ยังมีชีวิต | https://room-booking-system-v7sg.onrender.com/api/health |
+| ฐานข้อมูล | Atlas cluster `realtest001` · database **`roomBooking`** |
+
+---
+
 ระบบมี 3 ชิ้นที่อยู่คนละที่:
 
 | ชิ้น | อยู่ที่ | ฟรีไหม |
@@ -37,8 +48,22 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 > เปลี่ยน IP ของเครื่องที่รันตลอดเวลา การล็อก IP จึงทำไม่ได้ใน free tier
 > สิ่งที่ต้องทำแทนคือ **รหัสผ่านฐานข้อมูลต้องยาวและไม่ซ้ำกับที่อื่น**
 
-3. เมนู **Database Access** → ตรวจว่า user มีสิทธิ์ `readWrite` บน database ที่ใช้
-4. ปุ่ม **Connect → Drivers** → ก็อป connection string เก็บไว้ (อย่าลืมแทน `<password>` ด้วยรหัสจริง)
+3. เมนู **Database Access** → สร้าง user สำหรับแอปนี้โดยเฉพาะ (อย่าใช้ user ที่เป็น `atlasAdmin`)
+
+   | ช่อง | ใส่ |
+   |---|---|
+   | Username | `roombooking_app` |
+   | Password | Autogenerate Secure Password แล้วก็อปเก็บทันที (โชว์ครั้งเดียว) |
+   | Privileges | Specific Privileges → role `readWrite` |
+   | Database | **`roomBooking`** |
+
+   > ⚠️ **ชื่อ database แยกตัวพิมพ์เล็กใหญ่** `roombooking` กับ `roomBooking` คือคนละตัวกัน
+   > ถ้าให้สิทธิ์ผิดตัว ระบบจะต่อฐานข้อมูลติด แต่พอเรียกข้อมูลจริงจะได้ 500 พร้อมข้อความใน log ว่า
+   > `user is not allowed to do action [find] on [roomBooking.xxx]`
+   > แก้ได้ที่ Atlas อย่างเดียว ไม่ต้อง deploy ใหม่
+
+4. ปุ่ม **Connect → Drivers** → ก็อป connection string แล้วแทน `<password>` ด้วยรหัสจริง
+   และเติมชื่อ database ต่อท้าย host ให้ถูกตัวพิมพ์
 
 ---
 
@@ -167,6 +192,7 @@ Render จะ restart ให้เอง รอสักครู่
 | Console ขึ้น CORS error | `ALLOWED_ORIGINS` ไม่ตรงกับ URL ของ Vercel เป๊ะ ๆ (เช็ค https และ `/` ปิดท้าย) |
 | กด F5 ที่ `/bookings` แล้ว 404 | ไฟล์ `vercel.json` ไม่ได้ถูก commit ขึ้นไป |
 | build พังที่ Render บอกหา `tsc` ไม่เจอ | ลืม `--include=dev` ใน Build Command |
+| ขึ้น 500 ตอนเรียกข้อมูล แต่ `/api/health` ยังปกติ | สิทธิ์ของ database user ไม่ครอบคลุม database ที่ใช้ — เช็คตัวพิมพ์เล็กใหญ่ของชื่อ database |
 | ขึ้น 500 ตอนจอง | เปิด Logs ที่ Render ดูข้อความ error จริง |
 
 **เครื่องมือที่ต้องใช้เป็น** — กด F12 ในเบราว์เซอร์ → แท็บ **Network** → กดทำสิ่งที่พัง →
